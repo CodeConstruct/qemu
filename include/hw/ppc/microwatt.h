@@ -16,6 +16,7 @@
 #include "hw/ppc/xics.h"
 #include "hw/net/liteeth.h"
 #include "hw/ssi/lite_spi.h"
+#include "hw/sd/litesd.h"
 #include "hw/misc/unimp.h"
 
 struct MwSoCState;
@@ -68,6 +69,7 @@ struct MwSoCState {
     XICSFabric    *xics;
     LiteEthState  eth;
     LiteSPIState  spi;
+    LiteSDState   sd;
     UnimplementedDeviceState gpio;
 
     MemoryRegion  dram_init;
