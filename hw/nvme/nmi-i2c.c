@@ -167,30 +167,20 @@ static void nmi_handle_mi_config_get(NMIDevice *nmi, NMIRequest *request)
 {
     uint32_t dw0 = le32_to_cpu(request->dw0);
     uint8_t identifier = dw0 & 0xff;
-    uint8_t *buf;
+    uint8_t buf[4] = { 0 };
 
     trace_nmi_handle_mi_config_get(identifier);
 
     switch (identifier) {
     case NMI_CMD_CONFIGURATION_GET_SMBUS_FREQ:
-        buf = (uint8_t[]) {
-            0x0, 0x1, 0x0, 0x0,
-        };
-
+        buf[1] = 0x1;
         break;
 
     case NMI_CMD_CONFIGURATION_GET_HEALTH_STATUS_CHANGE:
-        buf = (uint8_t[]) {
-            0x0, 0x0, 0x0, 0x0,
-        };
-
         break;
 
     case NMI_CMD_CONFIGURATION_GET_MCTP_TRANSMISSION_UNIT:
-        buf = (uint8_t[]) {
-            0x0, 0x40, 0x0, 0x0,
-        };
-
+        buf[1] = 0x40;
         break;
     }
 
