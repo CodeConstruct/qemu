@@ -99,6 +99,14 @@ static void nmi_handle_mi_read_nmi_ds(NMIDevice *nmi, NMIRequest *request)
         0x00, 0x01, /* management endpoint i2c address/freq */
     };
 
+    static uint8_t nmi_ds_ctrls[8] = {
+        0x00,       /* success */
+        0x02,       /* response data length */
+        0x00, 0x00, /* reserved */
+        0x01, 0x00, /* number of controllers */
+        0x01, 0x00, /* Controller 1 */
+    };
+
     static uint8_t nmi_ds_error[4] = {
         0x04,       /* invalid parameter */
         0x00,       /* first invalid bit position */
@@ -129,13 +137,18 @@ static void nmi_handle_mi_read_nmi_ds(NMIDevice *nmi, NMIRequest *request)
 
         break;
 
+    case NMI_CMD_READ_NMI_DS_CTRL_LIST:
+        len = 8;
+        buf = nmi_ds_ctrls;
+
+        break;
+
     case NMI_CMD_READ_NMI_DS_CTRL_INFO:
         len = 4;
         buf = nmi_ds_error;
 
         break;
 
-    case NMI_CMD_READ_NMI_DS_CTRL_LIST:
     case NMI_CMD_READ_NMI_DS_CMD_SUPPORT:
     case NMI_CMD_READ_NMI_DS_MEB_CMD_SUPPORT:
         len = 8;
