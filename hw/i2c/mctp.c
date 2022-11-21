@@ -78,6 +78,9 @@ static void i2c_mctp_tx(void *opaque)
         /* packet sent */
         i2c_end_transfer(i2c);
 
+        /* end of any control data */
+        mctp->len = 0;
+
         /* fall through */
 
     case I2C_MCTP_STATE_TX_START_SEND:
