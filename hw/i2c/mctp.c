@@ -288,7 +288,7 @@ static int i2c_mctp_event_cb(I2CSlave *i2c, enum i2c_event event)
         } else if (mctp->state == I2C_MCTP_STATE_RX_STARTED) {
             trace_i2c_mctp_drop("expected SOM");
             goto drop;
-        } else if (((pkt->mctp.hdr.flags >> 4) & 0x3) != (mctp->tx.pktseq++ & 0x3)) {
+        } else if (((pkt->mctp.hdr.flags >> 4) & 0x3) != (++mctp->tx.pktseq & 0x3)) {
             trace_i2c_mctp_drop_invalid_pktseq((pkt->mctp.hdr.flags >> 4) & 0x3,
                                                mctp->tx.pktseq & 0x3);
             goto drop;
