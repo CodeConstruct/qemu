@@ -231,15 +231,15 @@ static int i2c_mctp_event_cb(I2CSlave *i2c, enum i2c_event event)
 
     switch (event) {
     case I2C_START_SEND:
-        if (mctp->state != I2C_MCTP_STATE_IDLE) {
+        if (mctp->state == I2C_MCTP_STATE_IDLE) {
+            mctp->state = I2C_MCTP_STATE_RX_STARTED;
+        } else if (mctp->state != I2C_MCTP_STATE_RX) {
             return -1;
         }
 
         /* the i2c core eats the slave address, so put it back in */
         pkt->i2c.dest = i2c->address << 1;
         mctp->len = 1;
-
-        mctp->state = I2C_MCTP_STATE_RX_STARTED;
 
         return 0;
 
