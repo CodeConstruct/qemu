@@ -11,9 +11,11 @@
 
 #include "qemu/osdep.h"
 #include "qemu/crc32c.h"
+#include "qemu/cutils.h"
 #include "hw/i2c/i2c.h"
 #include "hw/registerfields.h"
 #include "hw/i2c/mctp.h"
+#include "block/nvme.h"
 #include "trace.h"
 
 #define NMI_MAX_MESSAGE_LENGTH 4224
@@ -33,9 +35,6 @@ typedef struct NMIDevice {
 
 FIELD(NMI_NMP, ROR, 7, 1)
 FIELD(NMI_NMP, NMIMT, 3, 4)
-
-#define NMI_NMP_NMIMT_NMI_CMD 0x1
-#define NMI_NMP_NMIMT_NM_ADMIN 0x2
 
 typedef struct NMIMessage {
     uint8_t mctpd;
@@ -57,6 +56,41 @@ typedef struct NMIResponse {
     uint8_t response[3];
     uint8_t payload[]; /* includes the Message Integrity Check */
 } NMIResponse;
+
+/* NVME-MI 1.2b Figure 116 */
+typedef struct NVMeAdminRequest {
+   uint8_t opc;
+   uint8_t cmd_flags;
+   uint16_t ctrl_id;
+   uint32_t dw1;
+   uint32_t dw2;
+   uint32_t dw3;
+   uint32_t dw4;
+   uint32_t dw5;
+   uint32_t data_offset;
+   uint32_t data_length;
+   uint32_t rsvd1;
+   uint32_t rsvd2;
+   uint32_t dw10;
+   uint32_t dw11;
+   uint32_t dw12;
+   uint32_t dw13;
+   uint32_t dw14;
+   uint32_t dw15;
+   uint8_t data[]; /* includes the Message Integrity Check */
+} NVMeAdminRequest;
+
+/* NVME-MI 1.2b Figure 118 */
+typedef struct NVMeAdminResponse {
+   uint8_t status;
+   uint8_t rsvd0;
+   uint8_t rsvd1;
+   uint8_t rsvd2;
+   uint32_t dw0;
+   uint32_t dw1;
+   uint32_t dw2;
+   uint8_t data[]; /* includes the Message Integrity Check */
+} NVMeAdminResponse;
 
 typedef enum NMIReadDSType {
     NMI_CMD_READ_NMI_DS_SUBSYSTEM       = 0x0,
@@ -247,8 +281,56 @@ static void nmi_handle_mi(NMIDevice *nmi, NMIMessage *msg)
     }
 }
 
+static void nmi_handle_identify_2ndary(NMIDevice *nmi, NVMeAdminRequest *request) {
+
+    NVMeAdminResponse resp = { .status = 0 };
+
+    // no secondary controllers
+
+    memcpy(nmi->scratch + nmi->pos, &resp, sizeof(resp));
+    nmi->pos += sizeof(resp);
+}
+
+static void nmi_handle_admin_identify(NMIDevice *nmi, NVMeAdminRequest *request) {
+
+    uint8_t cns = le32_to_cpu(request->dw10) & 0xff;
+
+    switch (cns) {
+        case NVME_ID_CNS_SECONDARY_CTRL_LIST:
+            nmi_handle_identify_2ndary(nmi, request);
+            break;
+
+        default:
+            nmi_set_parameter_error(nmi, offsetof(NVMeAdminRequest, dw10), 0x0);
+            fprintf(stderr, "unhandled admin cns 0x%x\n", cns);
+    }
+
+}
+
+static void nmi_handle_admin(NMIDevice *nmi, NMIMessage *msg)
+{
+    // skip MCTP type byte
+    NVMeAdminRequest *req = (NVMeAdminRequest *)msg->payload;
+
+    uint16_t ctrl_id = le16_to_cpu(req->ctrl_id);
+    trace_nmi_handle_admin(ctrl_id, req->cmd_flags, req->opc);
+
+    switch (req->opc) {
+    case NVME_ADM_CMD_IDENTIFY:
+        nmi_handle_admin_identify(nmi, req);
+        break;
+
+    default:
+        nmi_set_parameter_error(nmi, offsetof(NVMeAdminRequest, opc), 0x0);
+        fprintf(stderr, "nvme admin opcode 0x%x not handled\n", req->opc);
+
+        break;
+    }
+}
+
 enum {
     NMI_MESSAGE_TYPE_NMI = 0x1,
+    NMI_MESSAGE_TYPE_ADMIN = 0x2,
 };
 
 static void nmi_handle_message(MCTPI2CEndpoint *mctp)
@@ -274,6 +356,10 @@ static void nmi_handle_message(MCTPI2CEndpoint *mctp)
     switch (nmimt) {
     case NMI_MESSAGE_TYPE_NMI:
         nmi_handle_mi(nmi, msg);
+        break;
+
+    case NMI_MESSAGE_TYPE_ADMIN:
+        nmi_handle_admin(nmi, msg);
         break;
 
     default:
