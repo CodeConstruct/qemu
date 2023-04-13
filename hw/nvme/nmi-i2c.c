@@ -208,6 +208,7 @@ enum {
     NMI_CMD_CONFIGURATION_GET_SMBUS_FREQ                = 0x1,
     NMI_CMD_CONFIGURATION_GET_HEALTH_STATUS_CHANGE      = 0x2,
     NMI_CMD_CONFIGURATION_GET_MCTP_TRANSMISSION_UNIT    = 0x3,
+    NMI_CMD_CONFIGURATION_GET_MCTP_TRANSMISSION_UNIT    = 0x3,
 };
 
 static void nmi_handle_mi_config_get(NMIDevice *nmi, NMIRequest *request)
@@ -307,6 +308,25 @@ static void nmi_handle_admin_identify(NMIDevice *nmi, NVMeAdminRequest *request)
 
 }
 
+static void nmi_handle_admin_security_send(NMIDevice *nmi, NVMeAdminRequest *request) {
+
+    uint8_t cns = le32_to_cpu(request->dw10) & 0xff;
+
+    switch (cns) {
+        case NVME_ID_CNS_SECONDARY_CTRL_LIST:
+            nmi_handle_identify_2ndary(nmi, request);
+            break;
+
+        default:
+            nmi_set_parameter_error(nmi, offsetof(NVMeAdminRequest, dw10), 0x0);
+            fprintf(stderr, "unhandled admin cns 0x%x\n", cns);
+    }
+
+}
+
+static void nmi_handle_admin_security_receive(NMIDevice *nmi, NVMeAdminRequest *request) {{
+}
+
 static void nmi_handle_admin(NMIDevice *nmi, NMIMessage *msg)
 {
     // skip MCTP type byte
@@ -319,6 +339,14 @@ static void nmi_handle_admin(NMIDevice *nmi, NMIMessage *msg)
     case NVME_ADM_CMD_IDENTIFY:
         nmi_handle_admin_identify(nmi, req);
         break;
+
+    case NVME_ADM_CMD_SECURITY_SEND:
+        nmi_handle_admin_security_send(nmi, req);
+        break
+
+    case NVME_ADM_CMD_SECURITY_RECV:
+        nmi_handle_admin_security_recv(nmi, req);
+        break
 
     default:
         nmi_set_parameter_error(nmi, offsetof(NVMeAdminRequest, opc), 0x0);
